@@ -26,8 +26,8 @@ public class HMACClient {
     private final static String DATE_FORMAT = "EEE, d MMM yyyy HH:mm:ss z";
     private final static String HMAC_SHA1_ALGORITHM = "HmacSHA1";
 
-    private final static String SECRET = "699d82d3-1079-4f60-a809-b14722fc932c";
-    private final static String ACCESS = "2735d74e-5444-4ccb-9556-1f640b83ebad";
+    private final static String SECRET = "secret";
+    private final static String ACCESS = "client-access";
     //access_id: 
 
     public static void main(String[] args) throws HttpException, IOException, NoSuchAlgorithmException {
@@ -36,42 +36,51 @@ public class HMACClient {
         client.makeHTTPCallUsingHMAC(ACCESS);
     }
 
-    public void makeHTTPCallUsingHMAC(String username) throws HttpException,  NoSuchAlgorithmException {
+    public void makeHTTPCallUsingHMAC(String username)
+            throws HttpException, NoSuchAlgorithmException {
 
-        String currentDate = new SimpleDateFormat(DATE_FORMAT).format(new Date());
+        SimpleDateFormat sdf = new SimpleDateFormat(DATE_FORMAT);
+        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+        String currentDate = sdf.format(new Date());
+        currentDate = currentDate.replaceAll("UTC", "GMT");
 
-        HttpPatch patch = new HttpPatch("https://peak-api-dev.fresco.me/api/v1/performance_captures/25.json");
-        patch.setEntity();
-        
+        List<NameValuePair> formParams = new ArrayList<NameValuePair>();
+        formParams
+                .add(new BasicNameValuePair("performance_capture_status", "2"));
+        formParams.add(new BasicNameValuePair("message", "someValue"));
+
+        UrlEncodedFormEntity entity = new UrlEncodedFormEntity(formParams,
+                Consts.UTF_8);
+
+        HttpPatch patch = new HttpPatch(
+                "url");
+
+        patch.setHeader("X-EMPLOYEE-ID", "1234");
+        patch.setEntity(entity);
 
         String verb = patch.getMethod();
-        System.out.println("verb---"+verb);
-
-        String contentMd5 = calculateMD5(contentEncoding);
-        System.out.println("contentMd5----"+contentMd5);
+        System.out.println("verb---" + verb);
 
         StringBuilder toSign = new StringBuilder();
-    	toSign.append(verb).append(",").append(contentMd5).append(",").append(data.getContentType().getValue()).append(",").append(currentDate).append(",").append(patch.getURI().getPath());
-        System.out.println("toSign is"+toSign);
-        String hmac = calculateHMAC(SECRET, toSign);
+        toSign.append(verb).append(",").append(entity.getContentType().getValue())
+                .append(",").append(",").append(patch.getURI().getPath())
+                .append(",").append(currentDate);
+        System.out.println("toSign is" + toSign);
 
-        System.out.println("HMAC got is - "+hmac);
-        patch.addHeader("Authorization", new String("AWS ").concat(ACCESS).concat(":").concat(hmac));
+        String hmac = calculateHMAC(SECRET, toSign.toString());
+
+        System.out.println("HMAC got is - " + hmac);
+
         patch.addHeader("Date", currentDate);
-        patch.addHeader("Content-Md5", contentMd5);
+        patch.addHeader("Authorization", "APIAuth " + username + ":" + hmac);
 
-
-        HttpClient client = new DefaultHttpClient();
+        HttpClient httpClient = new DefaultHttpClient();
         HttpResponse response = null;
-        try 
-        {
-            response = client.execute(patch);
-        } 
-        catch (ClientProtocolException e) 
-        {
+        try {
+            response = httpClient.execute(patch);
+        } catch (ClientProtocolException e) {
             e.printStackTrace();
-        } 
-        catch (IOException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
 
@@ -80,8 +89,11 @@ public class HMACClient {
         System.out.println(response.getStatusLine().getReasonPhrase());
         System.out.println(response.getStatusLine().toString());
 
-        System.out.println("client response:" + response.getStatusLine().getStatusCode());
+        System.out.println(
+                "client response:" + response.getStatusLine().getStatusCode());
     }
+
+
 
     private String calculateHMAC(String secret, String data) {
         try {
